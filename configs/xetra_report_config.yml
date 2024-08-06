@@ -1,0 +1,17 @@
+# Logging Configuration
+
+logging:
+  version: 1
+  formatters: 
+    # This is the name of a formatter
+    xetra:
+      format: "Xetra Transformer - %(asctime)s - %(levelname)s - %(message)s"
+  handlers:
+    # Where the log messages should go e.g to a file, console etc
+    console:
+      class: logging.StreamHandler # This specifies that log messages will be sent to the console 
+      formatter: xetra # This associates the xetra formatter with this handler, meaning that the log messages sent to the console will use this format. 
+      level: DEBUG
+  root:
+    level: DEBUG
+    handlers: [ console ]
