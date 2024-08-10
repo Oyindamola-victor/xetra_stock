@@ -4,11 +4,12 @@ Test S3BucketConnectorMethods
 
 import unittest
 import boto3
-
+from io import StringIO, BytesIO
+import pandas as pd
 from moto import mock_aws
 
 from xetra_code.common.s3 import S3BucketConnector
-
+from xetra_code.common.custom_exceptions import WrongFormatException
 
 class TestS3BucketConnectorMethods(unittest.TestCase):
     """
@@ -50,6 +51,7 @@ class TestS3BucketConnectorMethods(unittest.TestCase):
             self.s3_endpoint_url,
             self.s3_bucket_name,
         )
+        
 
     def tearDown(self):
         # Stopping the mock s3 connection
@@ -121,7 +123,7 @@ class TestS3BucketConnectorMethods(unittest.TestCase):
             The purpose is to capture any log messages that are generated 
             during the execution of the code block within the with statement.
             """
-            df_result = self.s3_bucket_conn.read_csv_to_df(key=key_exp)
+            df_result = self.s3_bucket_conn.read_csv_to_df_ok(key=key_exp)
             
             # Log test after method execution and confirm expected log is present
             self.assertIn(expected_log, mocked_logs.output[0])
@@ -139,8 +141,121 @@ class TestS3BucketConnectorMethods(unittest.TestCase):
         self.s3_bucket.delete_objects(
             Delete={"Objects": [{"Key": key_exp}]}
         )
+    
+    def test_write_df_to_s3_empty(self):
+        """
+        This tests the write_df_to_s3 method by trying to add an empty dataframe
+        """   
+        result_exp = None    
+        expected_log = "The DataFrame is empty! No file will be written"
+        empty_dataframe = pd.DataFrame()
+        expected_key = "emp_file"
+        file_format = ".parquet"
+        # Method execution
+        with self.assertLogs() as mocked_logs:
+            df_result = self.s3_bucket_conn.write_df_to_s3(data_frame=empty_dataframe, key=expected_key, file_format=file_format)
 
+            # Log test after method execution and confirm expected log is present
+            self.assertIn(expected_log, mocked_logs.output[0])
+        
+        self.assertEqual(result_exp, df_result)
+        
+    def test_write_df_to_s3_csv(self):
+        """
+        This tests the write_df_to_s3 method by adding 1 csv file
+        and writing to an s3 bucket
+        """
+        # Expected results
+        return_exp = True
+        key_exp = "testfile"
+        file_format = "csv"
+        expected_log = f"Writing file to {self.s3_endpoint_url}/{self.s3_bucket_name}/{key_exp}.{file_format}"
+        test_data = {'col1': [1, 2], 'col2': [3, 4]}
+        csv_df = pd.DataFrame(data = test_data)
+        
+        # Method Execution
+        with self.assertLogs() as mocked_logs:
+            csv_result = self.s3_bucket_conn.write_df_to_s3(data_frame=csv_df, key=f"{key_exp}.{file_format}", file_format=file_format)
+            
+            # Log test after method execution and confirm expected log is present
+            self.assertIn(expected_log, mocked_logs.output[0])
+        
+        # Testing the Method Execution
+        self.assertEqual(return_exp, csv_result)
+        
+        # Testing that the dataframe written equals the original
+        written_df_object = self.s3_bucket.Object(key=f"{key_exp}.{file_format}").get().get("Body").read().decode("utf-8")
+        output_buffer = StringIO(written_df_object)
+        written_df = pd.read_csv(output_buffer, delimiter = ',')
+        
+        self.assertTrue(csv_df.equals(written_df))
+        
+        # Cleanup after tests
+        self.s3_bucket.delete_objects(
+            Delete={"Objects": [{"Key": f"{key_exp}.{file_format}"}]}
+        )
+    
+    def test_write_df_to_s3_parquet(self):
+        """
+        This tests the write_df_to_s3 method by adding 1 csv file
+        and writing to an s3 bucket
+        """
+        # Expected results
+        return_exp = True
+        key_exp = "testfile"
+        file_format = "parquet"
+        expected_log = f"Writing file to {self.s3_endpoint_url}/{self.s3_bucket_name}/{key_exp}.{file_format}"
+        test_data = {'col1': [1, 2], 'col2': [3, 4]}
+        parquet_df = pd.DataFrame(data = test_data)
+        
+        # Method Execution
+        with self.assertLogs() as mocked_logs:
+            parquet_result = self.s3_bucket_conn.write_df_to_s3(data_frame=parquet_df, key=f"{key_exp}.{file_format}", file_format=file_format)
+            
+            # Log test after method execution and confirm expected log is present
+            self.assertIn(expected_log, mocked_logs.output[0])
+        
+        # Testing the Method Execution
+        self.assertEqual(return_exp, parquet_result)
+        
+        # Testing that the dataframe written equals the original
+        written_df_object = self.s3_bucket.Object(key=f"{key_exp}.{file_format}").get().get("Body").read()
+        output_buffer = BytesIO(written_df_object)
+        written_df = pd.read_parquet(output_buffer)
+        
+        self.assertTrue(parquet_df.equals(written_df))
+        
+        # Cleanup after tests
+        self.s3_bucket.delete_objects(
+            Delete={"Objects": [{"Key": f"{key_exp}.{file_format}"}]}
+        )
+    
+    def test_write_df_to_s3_wrong_format(self):
+        """
+        This tests the write_df_to_s3 method by providing the wrong format
+        """
+        
+        key_exp = "wrong_file"
+        file_format = "wrong_format"
+        expected_log = f"The file format {file_format} is not supported to be written to s3!"
+        test_data = {'col1': [1, 2], 'col2': [3, 4]}
+        wrong_dataframe = pd.DataFrame(data=test_data)
+        exception_exp = WrongFormatException
+        
+        # Method Execution
+        with self.assertLogs() as mocked_logs:
+            with self.assertRaises(exception_exp):
+                self.s3_bucket_conn.write_df_to_s3(data_frame=wrong_dataframe, key=f"{key_exp}.{file_format}", file_format=file_format)
 
-
+                # Log test after method execution and confirm expected log is present
+                self.assertIn(expected_log, mocked_logs.output[0])
+        
+            
+        
+        
+        
+        
+        
+  
 if __name__ == "__main__":
     unittest.main()
