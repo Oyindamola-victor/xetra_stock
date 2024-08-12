@@ -150,7 +150,7 @@ class TestS3BucketConnectorMethods(unittest.TestCase):
         expected_log = "The DataFrame is empty! No file will be written"
         empty_dataframe = pd.DataFrame()
         expected_key = "emp_file"
-        file_format = ".parquet"
+        file_format = ".csv"
         # Method execution
         with self.assertLogs() as mocked_logs:
             df_result = self.s3_bucket_conn.write_df_to_s3(data_frame=empty_dataframe, key=expected_key, file_format=file_format)
@@ -249,13 +249,6 @@ class TestS3BucketConnectorMethods(unittest.TestCase):
 
                 # Log test after method execution and confirm expected log is present
                 self.assertIn(expected_log, mocked_logs.output[0])
-        
-            
-        
-        
-        
-        
-        
-  
+
 if __name__ == "__main__":
     unittest.main()
