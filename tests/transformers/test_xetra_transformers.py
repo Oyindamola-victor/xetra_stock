@@ -3,7 +3,7 @@ from unittest.mock import patch
 from moto import mock_aws
 import boto3
 import pandas as pd
-from io import StringIO
+from io import StringIO, BytesIO
 from xetra_code.transformers.xetra_transformers import (
     XetraETL,
     XetraSourceConfig,
@@ -135,9 +135,9 @@ class TestXetraETL(unittest.TestCase):
         # For the target table
         columns_report = ['ISIN', 'Date', 'opening_price_eur', 'closing_price_eur',
         'minimum_price_eur', 'maximum_price_eur', 'daily_traded_volume', 'change_prev_closing_%']
-        data_report = [['AT0000A0E9W5', '2021-04-17', 20.21, 18.27, 18.21, 21.34, 1088, 10.62],
-                       ['AT0000A0E9W5', '2021-04-18', 20.58, 19.27, 18.89, 21.14, 10286, 1.83],
-                       ['AT0000A0E9W5', '2021-04-19', 23.58, 24.22, 22.21, 25.01, 3586, 14.58]]
+        data_report = [['AT0000A0E9W5', '2021-04-17', 20.21, 18.27, 18.21, 21.34, 1088, 0.00],
+                       ['AT0000A0E9W5', '2021-04-18', 20.58, 19.27, 18.89, 21.14, 10286, 5.19],
+                       ['AT0000A0E9W5', '2021-04-19', 23.58, 24.22, 22.21, 25.01, 3586, 20.44]]
         self.df_report = pd.DataFrame(data_report, columns=columns_report)
 
     def tearDown(self):
@@ -180,75 +180,151 @@ class TestXetraETL(unittest.TestCase):
             df_return = xetra_etl.extract()
         # Test after method execution
         self.assertTrue(df_return.empty)
+    
+    def test_transform_report1_ok(self):
+        """
+        Tests the transform_report1 method with
+        an DataFrame as input argument
+        """
+        # Expected results
+        log1_exp = 'Applying transformations to Xetra source data for report 1 started...'
+        log2_exp = 'Applying transformations to Xetra source data finished...'
+        df_exp = self.df_report
+        # Test init
+        extract_date = '2021-04-17'
+        extract_date_list = ['2021-04-16', '2021-04-17', '2021-04-18', '2021-04-19']
+        df_input = self.df_src.loc[1:8].reset_index(drop=True)
+        # Method execution
+        with patch.object(MetaProcess, "return_date_list", return_value=[extract_date, extract_date_list]):
+            xetra_etl = XetraETL(self.s3_bucket_src, self.s3_bucket_trg,
+                         self.meta_key, self.source_config, self.target_config)
+            with self.assertLogs() as mocked_logs:
+                df_result = xetra_etl.transform_report1(df_input)
+                # Log test after method execution
+                self.assertIn(log1_exp, mocked_logs.output[0])
+                self.assertIn(log2_exp, mocked_logs.output[1])
         
-    # ALTERNATIVE METHOD TO test_extract
-    # @mock_aws
-    # def test_extract(self):
-    #     # Setup the mock S3 environment
-    #     s3 = boto3.resource("s3", region_name="us-east-1")
-    #     bucket_name = "test-bucket"
-    #     s3.create_bucket(Bucket=bucket_name)
+        # Print out the DataFrames for comparison
+        # print("Expected DataFrame:")
+        # print(df_exp)
+        # print("Resulting DataFrame:")
+        # print(df_result)
+        
+        # Test after method execution
+        self.assertTrue(df_exp.equals(df_result))
+    
+    def test_transform_report1_empty_dataframe(self):
+        """
+        Tests the transform_report1 method with
+        an empty DataFrame as input argument
+        """
+        # Expected results
+        expected_log = 'The DataFrame is empty. No Transformation will be applied!'
+        # Test init
+        extract_date = '2021-04-17'
+        extract_date_list = ['2021-04-16', '2021-04-17', '2021-04-18']
+        df_input = pd.DataFrame()
+        # Method execution
+        with patch.object(MetaProcess, "return_date_list", return_value=[extract_date, extract_date_list]):
+            xetra_etl = XetraETL(self.s3_bucket_src, self.s3_bucket_trg,
+                         self.meta_key, self.source_config, self.target_config)
+            with self.assertLogs() as mocked_log:
+                df_result = xetra_etl.transform_report1(df_input)
+                # Log test after method execution
+                self.assertIn(expected_log, mocked_log.output[0])
+        
+        # Test after method execution
+        self.assertTrue(df_result.empty)
 
-    #     # Populate the bucket with some mock data
-    #     s3.Object(bucket_name, "2023-01-01/file1.csv").put(Body="col1,col2\n1,3\n2,4\n")
-    #     s3.Object(bucket_name, "2023-01-01/file2.csv").put(Body="col1,col2\n5,7\n6,8\n")
-
-    #     # Create a mock S3BucketConnector
-    #     s3_bucket_src = S3BucketConnector(
-    #         AWS_ACCESS_KEY="AWS_ACCESS_KEY",
-    #         AWS_SECRET_KEY="AWS_SECRET_KEY",
-    #         endpoint_url="https://s3.eu-central-1.amazonaws.com",
-    #         bucket=bucket_name,
-    #     )
-    #     s3_bucket_trg = S3BucketConnector(
-    #         AWS_ACCESS_KEY="AWS_ACCESS_KEY",
-    #         AWS_SECRET_KEY="AWS_SECRET_KEY",
-    #         endpoint_url="https://s3.eu-central-1.amazonaws.com",
-    #         bucket=bucket_name,
-    #     )
-
-    #     # Mock return_date_list method from MetaProcess to control the test scenario
-    #     MetaProcess.return_date_list = lambda self, x, y: ("2023-01-01", ["2023-01-01"])
-
-    #     # Instantiate XetraETL with the mocked S3 bucket connectors
-    #     etl = XetraETL(
-    #         s3_bucket_src=s3_bucket_src,
-    #         s3_bucket_trg=s3_bucket_trg,
-    #         meta_key="meta_key",
-    #         src_args=XetraSourceConfig(
-    #             src_first_extract_date="2023-01-01",
-    #             src_columns=[],
-    #             src_col_date="date",
-    #             src_col_isin="isin",
-    #             src_col_time="time",
-    #             src_col_start_price="start_price",
-    #             src_col_min_price="min_price",
-    #             src_col_max_price="max_price",
-    #             src_col_traded_vol="traded_vol",
-    #         ),
-    #         trg_args=XetraTargetConfig(
-    #             trg_col_isin="isin",
-    #             trg_col_date="date",
-    #             trg_col_op_price="open_price",
-    #             trg_col_clos_price="close_price",
-    #             trg_col_min_price="min_price",
-    #             trg_col_max_price="max_price",
-    #             trg_col_dail_trad_vol="daily_traded_volume",
-    #             trg_col_ch_prev_clos="change_prev_close",
-    #             trg_key="key",
-    #             trg_key_date_format="%Y-%m-%d",
-    #             trg_format="csv",
-    #         ),
-    #     )
-
-    #     # Call the extract method
-    #     extracted_df = etl.extract()
-
-    #     # Assertions to validate the correct behavior
-    #     self.assertEqual(len(extracted_df), 4)  # Since two DataFrames are concatenated
-    #     pd.testing.assert_frame_equal(
-    #         extracted_df, pd.DataFrame({"col1": [1, 2, 5, 6], "col2": [3, 4, 7, 8]})
-    #     )
+    def test_load(self):
+        """
+        Tests the load method
+        """
+        # Expected results
+        log1_exp = 'Xetra target data successfully written.'
+        log2_exp = 'Xetra meta file successfully updated.'
+        df_exp = self.df_report
+        meta_exp = ['2021-04-17', '2021-04-18', '2021-04-19']
+        # Test init
+        extract_date = '2021-04-17'
+        extract_date_list = ['2021-04-16', '2021-04-17', '2021-04-18', '2021-04-19']
+        df_input = self.df_report
+        # Method execution
+        with patch.object(MetaProcess, "return_date_list",
+        return_value=[extract_date, extract_date_list]):
+            xetra_etl = XetraETL(self.s3_bucket_src, self.s3_bucket_trg,
+                         self.meta_key, self.source_config, self.target_config)
+            with self.assertLogs() as mocked_logs:
+                xetra_etl.load_to_s3(df_input)
+                # Log test after method execution
+                self.assertIn(log1_exp, mocked_logs.output[1])
+                self.assertIn(log2_exp, mocked_logs.output[5])
+        # Test after method execution
+        trg_file = self.s3_bucket_trg.list_files_in_prefix(self.target_config.trg_key)[0]
+        data = self.trg_s3_bucket.Object(key=trg_file).get().get('Body').read()
+        out_buffer = BytesIO(data)
+        df_result = pd.read_parquet(out_buffer)
+        
+        self.assertTrue(df_exp.equals(df_result))
+        meta_file = self.s3_bucket_trg.list_files_in_prefix(self.meta_key)[0]
+        df_meta_result = self.s3_bucket_trg.read_csv_to_df_ok(meta_file)
+        self.assertEqual(list(df_meta_result['source_date']), meta_exp)
+        # Cleanup after test
+        self.trg_s3_bucket.delete_objects(
+            Delete={
+                'Objects': [
+                    {
+                        'Key': trg_file
+                    },
+                    {
+                        'Key': trg_file
+                    }
+                ]
+            }
+        )
+    
+    def test_etl_report1(self):
+        """
+        This tests the etl_report1 method and will be very similar to the test_load
+        """
+        # Expected results
+        df_exp = self.df_report
+        meta_exp = ['2021-04-17', '2021-04-18', '2021-04-19']
+        # Test init
+        extract_date = '2021-04-17'
+        extract_date_list = ['2021-04-16', '2021-04-17', '2021-04-18', '2021-04-19']
+        # Method execution
+        with patch.object(MetaProcess, "return_date_list",
+        return_value=[extract_date, extract_date_list]):
+            xetra_etl = XetraETL(self.s3_bucket_src, self.s3_bucket_trg,
+                         self.meta_key, self.source_config, self.target_config)
+            xetra_etl.etl_report1()
+        # Test after method execution
+        trg_file = self.s3_bucket_trg.list_files_in_prefix(self.target_config.trg_key)[0]
+        data = self.trg_s3_bucket.Object(key=trg_file).get().get('Body').read()
+        out_buffer = BytesIO(data)
+        df_result = pd.read_parquet(out_buffer)
+        self.assertTrue(df_exp.equals(df_result))
+        meta_file = self.s3_bucket_trg.list_files_in_prefix(self.meta_key)[0]
+        df_meta_result = self.s3_bucket_trg.read_csv_to_df_ok(meta_file)
+        self.assertEqual(list(df_meta_result['source_date']), meta_exp)
+        # Cleanup after test
+        self.trg_s3_bucket.delete_objects(
+            Delete={
+                'Objects': [
+                    {
+                        'Key': trg_file
+                    },
+                    {
+                        'Key': trg_file
+                    }
+                ]
+            }
+        )
+        
+        
+    
+        
 
 
 if __name__ == "__main__":
