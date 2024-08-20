@@ -3,9 +3,9 @@ s3:
   access_key: 'PASTE_ACCESS_KEY'
   secret_key: 'PASTE_SECRET_KEY'
   src_endpoint_url: 'https://s3.us-east-1.amazonaws.com'
-  src_bucket: 'xetra-sampledata'
+  src_bucket: 'xetra-src-table'
   trg_endpoint_url: 'https://s3.us-east-1.amazonaws.com'
-  trg_bucket: 'xetra-transformed-dataset'
+  trg_bucket: 'xetra-target-dataset'
 
 # configuration specific to the source
 source:

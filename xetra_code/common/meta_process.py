@@ -76,9 +76,7 @@ class MetaProcess:
 
     @staticmethod
     def return_date_list(
-        meta_bucket: S3BucketConnector,
-        first_date: str,
-        meta_file_key: str
+        meta_bucket: S3BucketConnector, first_date: str, meta_file_key: str
     ):
         """
         Creating a list of dates based on the input first_date and the already

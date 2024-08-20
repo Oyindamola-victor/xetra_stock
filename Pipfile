@@ -8,12 +8,13 @@ pandas = "*"
 boto3 = "*"
 pyarrow = "*"
 
-
 [dev-packages]
 awscli = "*"
 jupyter = "*"
 pylint = "*"
 coverage = "*"
+memory-profiler = "*"
+matplotlib = "*"
 
 [requires]
 python_version = "3.9"

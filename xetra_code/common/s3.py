@@ -33,6 +33,7 @@ class S3BucketConnector:
         self._s3 = self.session.resource(service_name="s3", endpoint_url=endpoint_url)
         self._bucket = self._s3.Bucket(bucket)
 
+    # @profile
     def list_files_in_prefix(self, prefix: str):
         """_summary_: Listing all files with a prefix on the S3 Bucket
 
@@ -45,6 +46,7 @@ class S3BucketConnector:
         files = [obj.key for obj in self._bucket.objects.filter(Prefix=prefix)]
         return files
 
+    # @profile
     def read_csv_to_df_ok(self, key: str, decoding="utf-8", sep=","):
         """_summary_: This takes in a csv object from a bucket and uses pandas to read it
 
@@ -79,15 +81,18 @@ class S3BucketConnector:
             key (str): Target key or filename of the file in the bucket
         """
         self._logger.info(
-            "Writing file to %s/%s/%s.%s", self.endpoint_url, self._bucket.name, key, file_format
+            "Writing file to %s/%s/%s.%s",
+            self.endpoint_url,
+            self._bucket.name,
+            key,
+            file_format,
         )
         self._bucket.put_object(Body=out_buffer.getvalue(), Key=key)
 
         return True
 
-    def write_df_to_s3(
-        self, data_frame: pd.DataFrame, key: str, file_format: str
-    ):
+    # @profile
+    def write_df_to_s3(self, data_frame: pd.DataFrame, key: str, file_format: str):
         """
         Writing a Pandas DataFrame to S3
         Supported formats: .csv, .parquet
