@@ -5,13 +5,13 @@ name = "pypi"
 
 [packages]
 pandas = "*"
-jupyter = "*"
 boto3 = "*"
 pyarrow = "*"
 
 
 [dev-packages]
 awscli = "*"
+jupyter = "*"
 pylint = "*"
 coverage = "*"
 
