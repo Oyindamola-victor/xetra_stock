@@ -20,15 +20,15 @@ class S3BucketConnector:
 
         Args:
             AWS_ACCESS_KEY (str): access key for accessing s3
-            AWS_SECRET_KEY (str): secret key for accessing s4
+            AWS_SECRET_KEY (str): secret key for accessing s3
             endpoint_url (str): endpoint url to s3 e.g s3
             bucket (str): S3 bucket name
         """
         self._logger = logging.getLogger(__name__)
         self.endpoint_url = endpoint_url
         self.session = boto3.Session(
-            aws_access_key_id=configuration[AWS_ACCESS_KEY],
-            aws_secret_access_key=configuration[AWS_SECRET_KEY],
+            aws_access_key_id=AWS_ACCESS_KEY,
+            aws_secret_access_key=AWS_SECRET_KEY,
         )
         self._s3 = self.session.resource(service_name="s3", endpoint_url=endpoint_url)
         self._bucket = self._s3.Bucket(bucket)

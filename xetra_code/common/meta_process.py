@@ -98,6 +98,7 @@ class MetaProcess:
         start_date = datetime.strptime(
             first_date, MetaProcessFormat.META_DATE_FORMAT.value
         ).date() - timedelta(days=1)
+        # todays_date_str = '2022-04-26'
         # today = datetime.strptime(
         #     todays_date_str, MetaProcessFormat.META_DATE_FORMAT.value
         # ).date()

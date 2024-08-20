@@ -85,8 +85,8 @@ class XetraETL:
         :param s3_bucket_src: connection to source S3 bucket
         :param s3_bucket_trg: connection to target S3 bucket
         :param meta_key: used as self.meta_key -> key of meta file
-        :param src_args: NamedTouple class with source configuration data
-        :param trg_args: NamedTouple class with target configuration data
+        :param src_args: NamedTuple class with source configuration data
+        :param trg_args: NamedTuple class with target configuration data
         """
 
         self._logger = logging.getLogger(__name__)
@@ -114,6 +114,7 @@ class XetraETL:
         files = [key for date in self.extract_date_list\
                     for key in self.s3_bucket_src.list_files_in_prefix(date)
                 ]
+        # print(f"ALL FILES:\n{files}")
 
         # Check if files were extracted
         if not files:
@@ -124,24 +125,18 @@ class XetraETL:
                 ignore_index=True,
             )
         self._logger.info("Finished Extracting Xetra source files.")
+        # print(f"Dataframe from all files:\n{data_frame}")
         return data_frame
 
-    def transform_report1(self, dataframe:pd.DataFrame):
+    
+    def transform_report1(self, dataframe: pd.DataFrame):
         """
-        This takes in a Dataframe and performs aggregation
-        to get the opening price and closing price per ISIN & Day.
-        Then it also gets the percentage closing price of each ISIN
-        and finally creates report 1
-
-        :param data_frame: Pandas DataFrame as Input
-
-        :returns:
-          data_frame: Transformed Pandas DataFrame as Output
+        Transform the source dataframe to generate the report with the required calculations.
         """
         if dataframe.empty:
             self._logger.info("The DataFrame is empty. No Transformation will be applied!")
             return dataframe
-        
+
         self._logger.info('Applying transformations to Xetra source data for report 1 started...')
         
         # Filtering necessary source columns
@@ -153,10 +148,12 @@ class XetraETL:
         dataframe[self.trg_args.trg_col_op_price] = dataframe.sort_values(by=[self.src_args.src_col_time])\
         .groupby([self.src_args.src_col_isin, self.src_args.src_col_date])[self.src_args.src_col_start_price]\
         .transform("first")
-        
+        # print(f"Dataframe after WOP:\n{dataframe.head(8)}")
         # Calculating closing price per ISIN and day
         dataframe[self.trg_args.trg_col_clos_price] = dataframe.sort_values(by=[self.src_args.src_col_time])\
-        .groupby([self.src_args.src_col_isin, self.src_args.src_col_date])[self.src_args.src_col_start_price].transform("last")
+        .groupby([self.src_args.src_col_isin, self.src_args.src_col_date])[self.src_args.src_col_start_price]\
+        .transform("last")
+        # print(f"Dataframe after CP:\n{dataframe.head(8)}")
         
         # Renaming columns
         dataframe.rename(columns={
@@ -165,8 +162,7 @@ class XetraETL:
             self.src_args.src_col_traded_vol: self.trg_args.trg_col_dail_trad_vol
             }, inplace=True)
         
-        # Aggregating per ISIN and day -> opening price, closing price,
-        # minimum price, maximum price, traded volume
+        # Aggregating per ISIN and day
         dataframe = dataframe.groupby([self.src_args.src_col_isin, self.src_args.src_col_date], as_index=False)\
         .agg({
         self.trg_args.trg_col_op_price: 'min', 
@@ -174,33 +170,43 @@ class XetraETL:
         self.trg_args.trg_col_min_price: 'min',
         self.trg_args.trg_col_max_price: 'max',
         self.trg_args.trg_col_dail_trad_vol: 'sum'})
-
-        # Curating the Change of current day's closing price compared to the
-        # previous trading day's closing price in %
-        # dataframe[self.trg_args.trg_col_ch_prev_clos] = dataframe.sort_values(by=[self.src_args.src_col_date]).groupby([self.src_args.src_col_isin])[self.trg_args.trg_col_op_price].shift(1)
+        # print(f"Dataframe after Aggregation:\n{dataframe.head(8)}")
         
-        dataframe["prev_closing_price"] = dataframe.sort_values(by=[self.src_args.src_col_date])\
-        .groupby([self.src_args.src_col_isin])[self.trg_args.trg_col_clos_price].shift(1)
+        # Calculating the percentage change in closing prices compared to the previous day
+        dataframe["prev_closing_price"] = dataframe\
+            .sort_values(by=[self.src_args.src_col_date])\
+                .groupby([self.src_args.src_col_isin])[self.trg_args.trg_col_clos_price]\
+                    .shift(1)
+        # print(f"Dataframe after percent_change:\n{dataframe.head(8)}")
         
-        dataframe[self.trg_args.trg_col_ch_prev_clos] = (dataframe[self.trg_args.trg_col_clos_price] - dataframe["prev_closing_price"]) / dataframe[self.trg_args.trg_col_clos_price] * 100
+        # Calculating percentage change
+        dataframe[self.trg_args.trg_col_ch_prev_clos] = (
+            (dataframe[self.trg_args.trg_col_clos_price] - dataframe["prev_closing_price"])
+            / dataframe["prev_closing_price"] * 100
+        )
         
-        # Dropping the temporary 'prev_closing_price' column
-        dataframe.drop(columns=["prev_closing_price"], inplace=True)
-    
+        dataframe.drop(columns=['prev_closing_price'], inplace=True)
         # Rounding to 2 decimals
         dataframe = dataframe.round(decimals=2)
-        # Removing the day before extract_date
+        
+        # Removing the days before extract_date
         dataframe = dataframe[dataframe.Date >= self.extract_date].reset_index(drop=True)
+        
         self._logger.info('Applying transformations to Xetra source data finished...')
         return dataframe
+
+
 
     def load_to_s3(self, dataframe: pd.DataFrame):
         """
         This method writes the transformed report to the target bucket
         """
         # Creating target key
-        target_key =  self.trg_args.trg_key + datetime.today().strftime(self.trg_args.trg_key_date_format) + '.' + self.trg_args.trg_format
-        
+        target_key =  (
+            f'{self.trg_args.trg_key}'
+            f'{datetime.today().strftime(self.trg_args.trg_key_date_format)}.'
+            f'{self.trg_args.trg_format}'
+        )
         # Writing to target
         self.s3_bucket_trg.write_df_to_s3(dataframe, target_key, self.trg_args.trg_format)
         self._logger.info('Xetra target data successfully written.')

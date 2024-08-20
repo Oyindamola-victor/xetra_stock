@@ -136,8 +136,8 @@ class TestXetraETL(unittest.TestCase):
         columns_report = ['ISIN', 'Date', 'opening_price_eur', 'closing_price_eur',
         'minimum_price_eur', 'maximum_price_eur', 'daily_traded_volume', 'change_prev_closing_%']
         data_report = [['AT0000A0E9W5', '2021-04-17', 20.21, 18.27, 18.21, 21.34, 1088, 0.00],
-                       ['AT0000A0E9W5', '2021-04-18', 20.58, 19.27, 18.89, 21.14, 10286, 5.19],
-                       ['AT0000A0E9W5', '2021-04-19', 23.58, 24.22, 22.21, 25.01, 3586, 20.44]]
+                       ['AT0000A0E9W5', '2021-04-18', 20.58, 19.27, 18.89, 21.14, 10286, 5.47],
+                       ['AT0000A0E9W5', '2021-04-19', 23.58, 24.22, 22.21, 25.01, 3586, 25.69]]
         self.df_report = pd.DataFrame(data_report, columns=columns_report)
 
     def tearDown(self):
@@ -204,7 +204,7 @@ class TestXetraETL(unittest.TestCase):
                 self.assertIn(log1_exp, mocked_logs.output[0])
                 self.assertIn(log2_exp, mocked_logs.output[1])
         
-        # Print out the DataFrames for comparison
+        # #Print out the DataFrames for comparison
         # print("Expected DataFrame:")
         # print(df_exp)
         # print("Resulting DataFrame:")
